@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="it"><head><meta charset="utf-8"><title>Scheda Carburante</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f3f4f6;--cd:#fff;--tx:#1b1f24;--mu:#5d6876;--bd:#d6dbe2;--pr:#0a63e8;--pt:#fff;--ok:#0f7a58;--er:#c62828;--wa:#fff4d6}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171b;--cd:#1f242a;--tx:#eef1f4;--mu:#9aa6b4;--bd:#343c46;--pr:#4c9aff;--pt:#04122b;--ok:#3ccf9a;--er:#ff7b7b;--wa:#3a3216}}
+:root[data-theme="dark"]{--bg:#14171b;--cd:#1f242a;--tx:#eef1f4;--mu:#9aa6b4;--bd:#343c46;--pr:#4c9aff;--pt:#04122b;--ok:#3ccf9a;--er:#ff7b7b;--wa:#3a3216}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:17px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;max-width:560px;margin:0 auto;padding:12px 12px 40px}
+h1{font-size:20px;margin:4px 0 2px}.sub{color:var(--mu);font-size:14px;margin:0 0 12px}
+.card{background:var(--cd);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+label{display:block;font-size:14px;color:var(--mu);margin:10px 0 4px}
+input,select{width:100%;font:inherit;font-size:18px;padding:12px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);min-height:50px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{font:inherit;font-weight:600;border:0;border-radius:12px;min-height:54px;padding:12px 16px;background:var(--pr);color:var(--pt);width:100%;cursor:pointer}
+button:disabled{opacity:.45}
+button.sec{background:transparent;color:var(--pr);border:2px solid var(--pr)}
+button.ghost{background:transparent;color:var(--mu);border:1px solid var(--bd);min-height:44px;font-weight:500}
+button.big{min-height:68px;font-size:20px;margin-bottom:12px}
+.row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.n{font-weight:700;color:var(--pr)}.mu{color:var(--mu);font-size:14px}
+.tot{display:flex;justify-content:space-around;text-align:center}.tot b{display:block;font-size:22px}
+.chips{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.chips button{background:var(--bg);color:var(--tx);border:2px solid var(--bd);min-height:50px}
+.chips button.on{border-color:var(--pr);background:var(--pr);color:var(--pt)}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:9;overflow-y:auto}
+.ov.show{display:block}
+.sheet{background:var(--bg);color:var(--tx);max-width:560px;margin:0 auto;min-height:100%;padding:calc(14px + env(safe-area-inset-top,0px)) 12px calc(30px + env(safe-area-inset-bottom,0px))}
+.warn{background:var(--wa);border-radius:10px;padding:10px 12px;margin:12px 0;font-size:15px}
+.err{color:var(--er);font-size:15px;margin-top:8px}.ok{color:var(--ok);font-weight:600}
+textarea{width:100%;height:220px;font:14px monospace;background:var(--cd);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:10px}
+.sp{height:10px}.th{width:56px;height:56px;object-fit:cover;border-radius:8px;margin:6px 6px 0 0;background:var(--bd)}
+#toast{position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:20;background:#1b1f24;color:#fff;border-radius:12px;padding:12px 14px;display:none;text-align:center}
+</style>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0a63e8"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<script src="jszip.min.js"></script>
+</head><body>
+<h1>Scheda carburante</h1>
+<p class="sub">Seli Overseas S.p.A. · compila ad ogni rifornimento</p>
+<div id="app"></div>
+<div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
+<div id="toast"></div>
+<script>
+var MESI=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+var CARB=["Gasolio","Benzina","GPL","Metano"],K2="scheda-carburante-v2",K1="scheda-carburante-v1",MAXR=14;
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function newS(v){var d=new Date();return{id:uid(),veh:{tipo:v?v.tipo:"",targa:v?v.targa:"",autista:v?v.autista:"",mese:d.getMonth(),anno:d.getFullYear(),kmFine:""},rows:[],sent:0}}
+var D={cur:newS(),hist:[]},DL=null,E=-1,T={id:"",blob:null},warned=false,cc=false,cd=-1;
+try{var q2=localStorage.getItem(K2);if(q2)D=JSON.parse(q2);else{var q1=localStorage.getItem(K1);if(q1){var o=JSON.parse(q1);D.cur.veh=o.veh;D.cur.rows=o.rows||[]}}}catch(e){}
+function save(){try{localStorage.setItem(K2,JSON.stringify(D))}catch(e){}}
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+/* foto in IndexedDB */
+var DB=null;
+function idb(){return new Promise(function(ok,ko){if(DB)return ok(DB);try{var q=indexedDB.open("schedacarb",1);q.onupgradeneeded=function(){q.result.createObjectStore("f")};q.onsuccess=function(){DB=q.result;ok(DB)};q.onerror=function(){ko()}}catch(e){ko(e)}})}
+function tx(m,f){return idb().then(function(d){return new Promise(function(ok,ko){var r=f(d.transaction("f",m).objectStore("f"));r.onsuccess=function(){ok(r.result)};r.onerror=function(){ko()}})})}
+function fput(k,b){return tx("readwrite",function(s){return s.put(b,k)})}
+function fget(k){return tx("readonly",function(s){return s.get(k)})}
+function fdel(k){return tx("readwrite",function(s){return s.delete(k)}).catch(function(){})}
+function shrink(file){return new Promise(function(ok,ko){var u=URL.createObjectURL(file),i=new Image();i.onload=function(){var k=Math.min(1,1400/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);c.getContext("2d").drawImage(i,0,0,c.width,c.height);URL.revokeObjectURL(u);c.toBlob(function(b){b?ok(b):ko()},"image/jpeg",.72)};i.onerror=function(){ko()};i.src=u})}
+/* utilità */
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function num(v){var n=parseFloat(String(v).replace(",","."));return isNaN(n)?0:n}
+function fm(n,d){return n.toLocaleString("it-IT",{minimumFractionDigits:d,maximumFractionDigits:d})}
+function fd(s){var p=s.split("-");return p.length==3?p[2]+"/"+p[1]+"/"+p[0]:s}
+function pad(n){return("0"+n).slice(-2)}
+function today(){var d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
+function g(id){return document.getElementById(id).value}
+function tot(s){var i=0,l=0;s.rows.forEach(function(r){i+=num(r.imp);l+=num(r.lit)});return{i:i,l:l}}
+function msg(t,ms){var e=document.getElementById("toast");e.textContent=t;e.style.display="block";clearTimeout(msg.t);if(ms)msg.t=setTimeout(function(){e.style.display="none"},ms)}
+function hideMsg(){document.getElementById("toast").style.display="none"}
+function showSheet(h){document.getElementById("sheet").innerHTML=h;document.getElementById("ov").classList.add("show")}
+function closeS(){document.getElementById("ov").classList.remove("show");render()}
+function rowH(r,i,clk){return'<div class="card"'+(clk?' onclick="'+clk+'"':'')+'><div class="row"><div><span class="n">N. '+(i+1)+'</span> · '+fd(r.d)+(r.foto?' 📷':'')+'<div class="mu">'+esc(r.dist)+(r.loc?' – '+esc(r.loc):'')+'</div></div><div style="text-align:right"><b>€ '+fm(num(r.imp),2)+'</b><div class="mu">'+fm(num(r.lit),2)+' L · '+esc(r.carb)+'</div></div></div><div class="mu">Km '+esc(r.km)+(clk?' · tocca per modificare':'')+'</div></div>'}
+/* schermata principale */
+function render(){
+  var c=D.cur,v=c.veh,t=tot(c),h="",op=(!v.targa||!v.tipo)?" open":"";
+  h+='<details class="card"'+op+'><summary style="font-weight:600;font-size:18px">Veicolo: '+esc(v.targa||"da inserire")+' · '+MESI[v.mese]+' '+v.anno+'</summary>';
+  h+='<label>Tipo e marca autoveicolo</label><input id="v_tipo" value="'+esc(v.tipo)+'" placeholder="es. Fiat Panda" oninput="sv()">';
+  h+='<label>Targa</label><input id="v_targa" value="'+esc(v.targa)+'" placeholder="AB123CD" autocapitalize="characters" oninput="sv()">';
+  h+='<label>Nome autista</label><input id="v_autista" value="'+esc(v.autista)+'" oninput="sv()">';
+  h+='<div class="g2"><div><label>Mese</label><select id="v_mese" onchange="sv()">'+MESI.map(function(m,i){return'<option value="'+i+'"'+(i==v.mese?" selected":"")+'>'+m+'</option>'}).join("")+'</select></div>';
+  h+='<div><label>Anno</label><input id="v_anno" type="number" inputmode="numeric" value="'+v.anno+'" oninput="sv()"></div></div>';
+  h+='<label>Lettura contachilometri fine mese</label><input id="v_km" type="number" inputmode="numeric" value="'+esc(v.kmFine)+'" oninput="sv()"></details>';
+  h+='<button class="big" onclick="openE(-1)">＋ Nuovo rifornimento</button>';
+  if(c.rows.length>=MAXR)h+='<div class="warn">La scheda cartacea ha '+MAXR+' righe: questa è piena.</div>';
+  if(!c.rows.length)h+='<div class="card mu">Nessun rifornimento. Dopo il pieno tocca il pulsante qui sopra e fotografa lo scontrino.</div>';
+  c.rows.forEach(function(r,i){h+=rowH(r,i,"openE("+i+")")});
+  h+='<div class="card tot"><div><span class="mu">Totale importo</span><b>€ '+fm(t.i,2)+'</b></div><div><span class="mu">Totale litri</span><b>'+fm(t.l,2)+' L</b></div></div>';
+  if(c.rows.length)h+='<div class="mu" style="text-align:center;margin-bottom:10px">'+(c.sent?'<span class="ok">Inviata il '+new Date(c.sent).toLocaleDateString("it-IT")+'</span>':'Non ancora inviata')+'</div>';
+  h+='<button onclick="sendS(D.cur)"'+(c.rows.length?'':' disabled')+'>Invia scheda con foto</button><div class="sp"></div>';
+  h+='<button class="sec" onclick="dlZip(D.cur)"'+(c.rows.length?'':' disabled')+'>Salva file ZIP sul telefono</button><div class="sp"></div>';
+  h+='<button class="sec" onclick="openHist()">Storico schede ('+D.hist.length+')</button><div class="sp"></div>';
+  h+='<button class="ghost" onclick="closeCur()"'+(c.rows.length?'':' disabled')+'>'+(cc?(c.sent?'Confermi? Tocca ancora per chiudere':'NON inviata! Tocca ancora per chiudere lo stesso'):'Chiudi scheda e inizia la nuova')+'</button>';
+  document.getElementById("app").innerHTML=h;
+}
+function sv(){var v=D.cur.veh;v.tipo=g("v_tipo");v.targa=g("v_targa").toUpperCase();v.autista=g("v_autista");v.mese=+g("v_mese");v.anno=+g("v_anno")||v.anno;v.kmFine=g("v_km");save()}
+function closeCur(){
+  if(!cc){cc=true;render();setTimeout(function(){cc=false;render()},6000);return}
+  cc=false;D.cur.closed=Date.now();D.hist.unshift(D.cur);D.cur=newS(D.cur.veh);save();render();msg("Scheda archiviata nello storico.",3000);
+}
+/* inserimento rifornimento */
+function openE(i){
+  var c=D.cur;E=i;warned=false;
+  var r=i>=0?c.rows[i]:{d:today(),imp:"",dist:"",loc:"",km:"",carb:(c.rows.length?c.rows[c.rows.length-1].carb:"Gasolio"),lit:"",foto:""};
+  T={id:r.foto||"",blob:null};
+  var h='<h1>'+(i>=0?'Modifica rifornimento N. '+(i+1):'Nuovo rifornimento N. '+(c.rows.length+1))+'</h1><div class="card">';
+  h+='<label>Data</label><input id="e_d" type="date" value="'+esc(r.d)+'">';
+  h+='<div class="g2"><div><label>Importo (€)</label><input id="e_imp" type="number" inputmode="decimal" step="any" value="'+esc(r.imp)+'"></div>';
+  h+='<div><label>Litri</label><input id="e_lit" type="number" inputmode="decimal" step="any" value="'+esc(r.lit)+'"></div></div>';
+  h+='<label>Tipo carburante</label><div class="chips" id="e_carb">'+CARB.map(function(x){return'<button type="button" class="'+(x==r.carb?"on":"")+'" onclick="pickC(this)">'+x+'</button>'}).join("")+'</div>';
+  h+='<label>Lettura km del contachilometri</label><input id="e_km" type="number" inputmode="numeric" value="'+esc(r.km)+'">';
+  h+='<label>Impianto (nome distributore)</label><input id="e_dist" value="'+esc(r.dist)+'" placeholder="es. Eni, Q8, IP">';
+  h+='<label>Località impianto</label><input id="e_loc" value="'+esc(r.loc)+'" placeholder="es. Catania">';
+  h+='<label>Foto dello scontrino</label><div id="pvw"></div><input id="e_f" type="file" accept="image/*" capture="environment" style="display:none" onchange="pic(this)"><button type="button" class="sec" id="fb" onclick="document.getElementById(\'e_f\').click()">📷 Fotografa lo scontrino</button></div>';
+  h+='<div id="e_msg"></div><button onclick="saveE()">Salva rifornimento</button><div class="sp"></div><button class="ghost" onclick="closeS()">Annulla</button>';
+  if(i>=0)h+='<div class="sp"></div><button class="ghost" style="color:var(--er)" onclick="delE()">Elimina questa riga</button>';
+  showSheet(h);
+  if(T.id)fget(T.id).then(function(b){if(b)showPv(b)}).catch(function(){});
+}
+function pickC(b){Array.prototype.forEach.call(b.parentNode.children,function(x){x.className=""});b.className="on"}
+function showPv(b){document.getElementById("pvw").innerHTML='<img src="'+URL.createObjectURL(b)+'" alt="scontrino" style="width:100%;border-radius:10px;margin-bottom:8px">';document.getElementById("fb").textContent="📷 Rifai la foto"}
+function pic(inp){var f=inp.files&&inp.files[0];if(!f)return;shrink(f).then(function(b){T.blob=b;showPv(b)}).catch(function(){document.getElementById("e_msg").innerHTML='<div class="err">Foto non leggibile, riprova.</div>'})}
+function saveE(){
+  var c=D.cur,on=document.querySelector("#e_carb .on"),m=document.getElementById("e_msg");
+  var r={d:g("e_d"),imp:g("e_imp"),lit:g("e_lit"),km:g("e_km"),dist:g("e_dist").trim(),loc:g("e_loc").trim(),carb:on?on.textContent:"",foto:T.id},er=[];
+  if(!r.d)er.push("data");if(num(r.imp)<=0)er.push("importo");if(num(r.lit)<=0)er.push("litri");if(!r.carb)er.push("tipo carburante");if(!r.km)er.push("km");if(!r.dist)er.push("impianto");
+  if(er.length){m.innerHTML='<div class="err">Manca: '+er.join(", ")+'</div>';return}
+  var w=[],pv=-1,pl=num(r.imp)/num(r.lit);
+  c.rows.forEach(function(x,i){if(i!=E&&num(x.km)>pv)pv=num(x.km)});
+  if(pl<0.8||pl>3.5)w.push("Il prezzo viene € "+fm(pl,2)+" al litro: controlla importo e litri.");
+  if(pv>=0&&num(r.km)<pv)w.push("I km ("+r.km+") sono meno dell'ultimo rifornimento ("+pv+").");
+  if(!r.foto&&!T.blob)w.push("Manca la foto dello scontrino.");
+  if(w.length&&!warned){warned=true;m.innerHTML='<div class="warn">'+w.join("<br>")+'<br><b>Se va bene così, tocca di nuovo Salva.</b></div>';return}
+  var done=function(){if(E>=0)c.rows[E]=r;else c.rows.push(r);c.sent=0;save();closeS()};
+  if(T.blob){r.foto=T.id||uid();fput(r.foto,T.blob).then(done,function(){m.innerHTML='<div class="err">Non riesco a salvare la foto su questo telefono. Riprova.</div>'})}else done();
+}
+function delE(){var c=D.cur,r=c.rows[E];if(r&&r.foto)fdel(r.foto);c.rows.splice(E,1);c.sent=0;save();closeS()}
+/* storico */
+function openHist(){
+  var h='<h1>Storico schede</h1><p class="mu">Qui restano tutte le schede chiuse, con le foto.</p>';
+  if(!D.hist.length)h+='<div class="card mu">Nessuna scheda archiviata. Chiudendo una scheda la ritrovi qui.</div>';
+  D.hist.forEach(function(s,i){var t=tot(s);h+='<div class="card" onclick="openH('+i+')"><div class="row"><b>'+MESI[s.veh.mese]+' '+s.veh.anno+' · '+esc(s.veh.targa||"-")+'</b><span class="mu">'+(s.sent?'inviata':'NON inviata')+'</span></div><div class="mu">'+s.rows.length+' rifornimenti · € '+fm(t.i,2)+' · '+fm(t.l,2)+' L</div></div>'});
+  showSheet(h+'<button class="ghost" onclick="closeS()">Chiudi</button>');
+}
+function openH(i){
+  var s=D.hist[i],t=tot(s),h='<h1>'+MESI[s.veh.mese]+' '+s.veh.anno+' · '+esc(s.veh.targa||"-")+'</h1><p class="mu">'+esc(s.veh.tipo)+' · '+esc(s.veh.autista)+' · km fine mese '+esc(s.veh.kmFine||"-")+'</p>';
+  s.rows.forEach(function(r,j){h+=rowH(r,j,"")+(r.foto?'<img class="th" data-f="'+r.foto+'" alt="">':'')});
+  h+='<div class="card tot"><div><span class="mu">Importo</span><b>€ '+fm(t.i,2)+'</b></div><div><span class="mu">Litri</span><b>'+fm(t.l,2)+' L</b></div></div>';
+  h+='<button onclick="sendS(D.hist['+i+'])">'+(s.sent?'Reinvia scheda con foto':'Invia scheda con foto')+'</button><div class="sp"></div>';
+  h+='<button class="sec" onclick="dlZip(D.hist['+i+'])">Salva file ZIP sul telefono</button><div class="sp"></div>';
+  h+='<button class="ghost" onclick="openHist()">Indietro</button><div class="sp"></div><button class="ghost" style="color:var(--er)" onclick="delH('+i+')">'+(cd==i?'Sicuro? Tocca ancora per eliminare definitivamente':'Elimina questa scheda')+'</button>';
+  showSheet(h);
+  Array.prototype.forEach.call(document.querySelectorAll("img[data-f]"),function(im){fget(im.getAttribute("data-f")).then(function(b){if(b)im.src=URL.createObjectURL(b)}).catch(function(){})});
+}
+function delH(i){
+  if(cd!=i){cd=i;openH(i);return}
+  D.hist[i].rows.forEach(function(r){if(r.foto)fdel(r.foto)});D.hist.splice(i,1);cd=-1;save();openHist();
+}
+/* esportazione */
+function txt(s){
+  var v=s.veh,t=tot(s),L=["SCHEDA CARBURANTE – SELI OVERSEAS S.p.A.",MESI[v.mese]+" "+v.anno+" | "+(v.tipo||"-")+" | Targa "+(v.targa||"-")+" | Autista "+(v.autista||"-"),"Km fine mese: "+(v.kmFine||"-"),""];
+  s.rows.forEach(function(r,i){L.push((i+1)+") "+fd(r.d)+" – € "+fm(num(r.imp),2)+" – "+fm(num(r.lit),2)+" L "+r.carb+" – km "+r.km+" – "+r.dist+(r.loc?", "+r.loc:"")+(r.foto?"":" [senza foto]"))});
+  L.push("","TOTALE: € "+fm(t.i,2)+" – "+fm(t.l,2)+" L");return L.join("\n");
+}
+function csv(s,nm){
+  var v=s.veh,q=function(x){return'"'+String(x==null?"":x).replace(/"/g,'""')+'"'};
+  var L=["Anno;Mese;Targa;Veicolo;Autista;Km fine mese;Nr;Data;Importo;Impianto;Localita;Lettura km;Carburante;Litri;Foto"];
+  s.rows.forEach(function(r,i){L.push([v.anno,v.mese+1,q(v.targa),q(v.tipo),q(v.autista),v.kmFine,i+1,fd(r.d),fm(num(r.imp),2),q(r.dist),q(r.loc),r.km,r.carb,fm(num(r.lit),2),nm[i]||"no"].join(";"))});
+  return"\ufeff"+L.join("\r\n");
+}
+function zname(s){return"scheda-carburante-"+(s.veh.targa||"veicolo").replace(/[^A-Za-z0-9]/g,"")+"-"+s.veh.anno+"-"+pad(s.veh.mese+1)+".zip"}
+async function mkZip(s){
+  if(typeof JSZip==="undefined")throw 0;
+  var z=new JSZip(),f=z.folder("foto"),nm=[];
+  for(var i=0;i<s.rows.length;i++){var r=s.rows[i];if(r.foto){try{var b=await fget(r.foto);if(b){nm[i]=pad(i+1)+"_"+r.d+".jpg";f.file(nm[i],b)}}catch(e){}}}
+  z.file("scheda.csv",csv(s,nm));z.file("riepilogo.txt",txt(s));
+  return z.generateAsync({type:"blob"});
+}
+function mark(s){s.sent=Date.now();save();hideMsg();if(document.getElementById("ov").classList.contains("show"))closeS();else render();msg("Scheda segnata come inviata.",3000)}
+function saveBlob(b,n){
+  if(DL)return DL.save({filename:n,data:b});
+  return new Promise(function(ok){var u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=n;document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(u);ok()},500)});
+}
+function stop(e){return e&&(e.name=="AbortError"||e.code=="declined")}
+function sendS(s){
+  msg("Preparo foto e dati…");
+  mkZip(s).then(function(b){
+    var n=zname(s),file;try{file=new File([b],n,{type:"application/zip"})}catch(e){file=null}
+    if(file&&navigator.canShare&&navigator.canShare({files:[file]}))return navigator.share({files:[file],title:"Scheda carburante "+s.veh.targa,text:txt(s)}).then(function(){mark(s)});
+    return saveBlob(b,n).then(function(){mark(s)});
+  }).catch(function(e){hideMsg();if(stop(e))return;fallback(txt(s))});
+}
+function dlZip(s){mkZip(s).then(function(b){return saveBlob(b,zname(s))}).then(function(){mark(s)}).catch(function(e){if(!stop(e))msg("Non riesco a creare il file.",3000)})}
+function fallback(t){
+  showSheet('<h1>Invio senza foto</h1><div class="warn">Su questo telefono non riesco a inviare le foto in automatico. Copia il testo qui sotto e mandalo; le foto restano salvate nell\'app.</div><textarea id="tx" readonly>'+esc(t)+'</textarea><div class="sp"></div><button onclick="cp()">Copia testo</button><div class="sp"></div><button class="ghost" onclick="closeS()">Chiudi</button><div id="cm"></div>');
+}
+function cp(){
+  var a=document.getElementById("tx"),ok=function(){document.getElementById("cm").innerHTML='<div class="mu" style="margin-top:8px">Copiato.</div>'};
+  a.focus();a.select();
+  try{if(document.execCommand("copy"))return ok()}catch(e){}
+  try{navigator.clipboard.writeText(a.value).then(ok)}catch(e){}
+}
+render();
+if("serviceWorker" in navigator)window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})});
+try{if(window.claude&&claude.use)claude.use("downloads").then(function(d){if(d){DL=d;if(!document.getElementById("ov").classList.contains("show"))render()}}).catch(function(){})}catch(e){}
+</script></body></html>
