@@ -46,7 +46,7 @@ var MESI=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agos
 var CARB=["Gasolio","Benzina","GPL","Metano"],K2="scheda-carburante-v2",K1="scheda-carburante-v1",MAXR=14;
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function newS(v){var d=new Date();return{id:uid(),veh:{tipo:v?v.tipo:"",targa:v?v.targa:"",autista:v?v.autista:"",mese:d.getMonth(),anno:d.getFullYear(),kmFine:""},rows:[],sent:0}}
-var D={cur:newS(),hist:[]},DL=null,E=-1,T={id:"",blob:null},warned=false,cc=false,cd=-1;
+var D={cur:newS(),hist:[]},DL=null,E=-1,T={id:"",blob:null},warned=false,cc=false,cd=-1,LS=null;
 try{var q2=localStorage.getItem(K2);if(q2)D=JSON.parse(q2);else{var q1=localStorage.getItem(K1);if(q1){var o=JSON.parse(q1);D.cur.veh=o.veh;D.cur.rows=o.rows||[]}}}catch(e){}
 function save(){try{localStorage.setItem(K2,JSON.stringify(D))}catch(e){}}
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
@@ -184,16 +184,22 @@ function saveBlob(b,n){
 }
 function stop(e){return e&&(e.name=="AbortError"||e.code=="declined")}
 function sendS(s){
-  msg("Preparo foto e dati…");
-  mkZip(s).then(function(b){
-    var n=zname(s),file;try{file=new File([b],n,{type:"application/zip"})}catch(e){file=null}
-    if(file&&navigator.canShare&&navigator.canShare({files:[file]}))return navigator.share({files:[file],title:"Scheda carburante "+s.veh.targa,text:txt(s)}).then(function(){mark(s)});
-    return saveBlob(b,n).then(function(){mark(s)});
-  }).catch(function(e){hideMsg();if(stop(e))return;fallback(txt(s))});
+  LS=s;msg("Preparo foto e dati…");
+  mkFiles(s).then(function(fl){
+    if(navigator.canShare&&navigator.canShare({files:fl}))return navigator.share({files:fl,title:"Scheda carburante "+s.veh.targa,text:txt(s)}).then(function(){mark(s)});
+    throw new Error("condivisione di file non disponibile");
+  }).catch(function(e){hideMsg();if(stop(e))return;fallback(txt(s),e)});
 }
-function dlZip(s){mkZip(s).then(function(b){return saveBlob(b,zname(s))}).then(function(){mark(s)}).catch(function(e){if(!stop(e))msg("Non riesco a creare il file.",3000)})}
-function fallback(t){
-  showSheet('<h1>Invio senza foto</h1><div class="warn">Su questo telefono non riesco a inviare le foto in automatico. Copia il testo qui sotto e mandalo; le foto restano salvate nell\'app.</div><textarea id="tx" readonly>'+esc(t)+'</textarea><div class="sp"></div><button onclick="cp()">Copia testo</button><div class="sp"></div><button class="ghost" onclick="closeS()">Chiudi</button><div id="cm"></div>');
+async function mkFiles(s){
+  var fl=[],nm=[];
+  for(var i=0;i<s.rows.length;i++){var r=s.rows[i];if(r.foto){try{var b=await fget(r.foto);if(b){nm[i]=pad(i+1)+"_"+r.d+".jpg";fl.push(new File([b],nm[i],{type:"image/jpeg"}))}}catch(e){}}}
+  fl.unshift(new File([csv(s,nm)],zname(s).replace(".zip",".csv"),{type:"text/csv"}));
+  return fl;
+}
+function dlZip(s){mkZip(s).then(function(b){return saveBlob(b,zname(s))}).then(function(){msg("File ZIP salvato: lo trovi nei Download del telefono.",4000)}).catch(function(e){if(!stop(e))msg("Non riesco a creare il file.",3000)})}
+function fallback(t,e){
+  var why=e?((e.name||"")+(e.message?": "+e.message:"")):"";
+  showSheet('<h1>Invio automatico non riuscito</h1><div class="warn">Da qui il telefono non permette di inviare le foto direttamente. Salva un file ZIP con foto e dati e mandalo tu, oppure copia solo il testo.'+(why?'<div class="mu" style="margin-top:6px">Motivo tecnico: '+esc(why)+'</div>':'')+'</div><button onclick="dlZip(LS)">Salva ZIP con foto e dati</button><div class="sp"></div><textarea id="tx" readonly style="height:150px">'+esc(t)+'</textarea><div class="sp"></div><button class="sec" onclick="cp()">Copia testo</button><div class="sp"></div><button class="ghost" onclick="closeS()">Chiudi</button><div id="cm"></div>');
 }
 function cp(){
   var a=document.getElementById("tx"),ok=function(){document.getElementById("cm").innerHTML='<div class="mu" style="margin-top:8px">Copiato.</div>'};
