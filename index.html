@@ -37,7 +37,7 @@ textarea{width:100%;height:220px;font:14px monospace;background:var(--cd);color:
 <script src="jszip.min.js"></script>
 </head><body>
 <h1>Scheda carburante</h1>
-<p class="sub">Seli Overseas S.p.A. · compila ad ogni rifornimento · v3</p>
+<p class="sub">Seli Overseas S.p.A. · compila ad ogni rifornimento · v4</p>
 <div id="app"></div>
 <div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
 <div id="toast"></div>
@@ -89,6 +89,7 @@ function render(){
   h+='<div class="card tot"><div><span class="mu">Totale importo</span><b>€ '+fm(t.i,2)+'</b></div><div><span class="mu">Totale litri</span><b>'+fm(t.l,2)+' L</b></div></div>';
   if(c.rows.length)h+='<div class="mu" style="text-align:center;margin-bottom:10px">'+(c.sent?'<span class="ok">Inviata il '+new Date(c.sent).toLocaleDateString("it-IT")+'</span>':'Non ancora inviata')+'</div>';
   h+='<button onclick="sendS(D.cur)"'+(c.rows.length?'':' disabled')+'>Invia scheda con foto</button><div class="sp"></div>';
+  h+='<div class="g2"><button class="ghost" onclick="sendS(D.cur,\'foto\')"'+(c.rows.length?'':' disabled')+'>Solo foto</button><button class="ghost" onclick="sendS(D.cur,\'csv\')"'+(c.rows.length?'':' disabled')+'>Solo Excel</button></div><div class="sp"></div>';
   h+='<button class="sec" onclick="dlZip(D.cur)"'+(c.rows.length?'':' disabled')+'>Salva file ZIP sul telefono</button><div class="sp"></div>';
   h+='<button class="sec" onclick="openHist()">Storico schede ('+D.hist.length+')</button><div class="sp"></div>';
   h+='<button class="ghost" onclick="closeCur()"'+(c.rows.length?'':' disabled')+'>'+(cc?(c.sent?'Confermi? Tocca ancora per chiudere':'NON inviata! Tocca ancora per chiudere lo stesso'):'Chiudi scheda e inizia la nuova')+'</button>';
@@ -148,6 +149,7 @@ function openH(i){
   s.rows.forEach(function(r,j){h+=rowH(r,j,"")+(r.foto?'<img class="th" data-f="'+r.foto+'" alt="">':'')});
   h+='<div class="card tot"><div><span class="mu">Importo</span><b>€ '+fm(t.i,2)+'</b></div><div><span class="mu">Litri</span><b>'+fm(t.l,2)+' L</b></div></div>';
   h+='<button onclick="sendS(D.hist['+i+'])">'+(s.sent?'Reinvia scheda con foto':'Invia scheda con foto')+'</button><div class="sp"></div>';
+  h+='<div class="g2"><button class="ghost" onclick="sendS(D.hist['+i+'],\'foto\')">Solo foto</button><button class="ghost" onclick="sendS(D.hist['+i+'],\'csv\')">Solo Excel</button></div><div class="sp"></div>';
   h+='<button class="sec" onclick="dlZip(D.hist['+i+'])">Salva file ZIP sul telefono</button><div class="sp"></div>';
   h+='<button class="ghost" onclick="openHist()">Indietro</button><div class="sp"></div><button class="ghost" style="color:var(--er)" onclick="delH('+i+')">'+(cd==i?'Sicuro? Tocca ancora per eliminare definitivamente':'Elimina questa scheda')+'</button>';
   showSheet(h);
@@ -183,18 +185,20 @@ function saveBlob(b,n){
   return new Promise(function(ok){var u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=n;document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(u);ok()},500)});
 }
 function stop(e){return e&&(e.name=="AbortError"||e.code=="declined")}
-function sendS(s){
-  LS=s;msg("Preparo foto e dati…");
-  mkFiles(s).then(function(fl){
-    if(navigator.canShare&&navigator.canShare({files:fl}))return navigator.share({files:fl,title:"Scheda carburante "+s.veh.targa}).then(function(){mark(s)});
+function sendS(s,mode){
+  mode=mode||"all";LS=s;msg("Preparo i file…");
+  mkFiles(s,mode).then(function(fl){
+    if(navigator.canShare&&navigator.canShare({files:fl}))return navigator.share({files:fl,title:"Scheda carburante "+s.veh.targa}).then(function(){
+      if(mode=="all")mark(s);else{hideMsg();msg(mode=="foto"?"Foto inviate. Manca ancora il file Excel.":"Excel inviato. Mancano ancora le foto.",5000)}
+    });
     throw new Error("condivisione di file non disponibile");
   }).catch(function(e){hideMsg();if(stop(e))return;fallback(txt(s),e)});
 }
-async function mkFiles(s){
+async function mkFiles(s,mode){
   var fl=[],nm=[];
-  for(var i=0;i<s.rows.length;i++){var r=s.rows[i];if(r.foto){try{var b=await fget(r.foto);if(b){nm[i]=pad(i+1)+"_"+r.d+".jpg";fl.push(new File([b],nm[i],{type:"image/jpeg"}))}}catch(e){}}}
-  fl.unshift(new File([csv(s,nm)],zname(s).replace(".zip",".csv"),{type:"text/csv"}));
-  fl.splice(1,0,new File([txt(s)],zname(s).replace(".zip",".txt"),{type:"text/plain"}));
+  if(mode!="csv")for(var i=0;i<s.rows.length;i++){var r=s.rows[i];if(r.foto){try{var b=await fget(r.foto);if(b){nm[i]=pad(i+1)+"_"+r.d+".jpg";fl.push(new File([b],nm[i],{type:"image/jpeg"}))}}catch(e){}}}
+  if(mode=="foto"&&!fl.length)throw new Error("nessuna foto salvata");
+  if(mode!="foto")fl.unshift(new File([csv(s,nm)],zname(s).replace(".zip",".csv"),{type:"text/csv"}));
   return fl;
 }
 function dlZip(s){mkZip(s).then(function(b){return saveBlob(b,zname(s))}).then(function(){msg("File ZIP salvato: lo trovi nei Download del telefono.",4000)}).catch(function(e){if(!stop(e))msg("Non riesco a creare il file.",3000)})}
