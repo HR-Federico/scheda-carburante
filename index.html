@@ -37,7 +37,7 @@ textarea{width:100%;height:220px;font:14px monospace;background:var(--cd);color:
 <script src="jszip.min.js"></script>
 </head><body>
 <h1>Scheda carburante</h1>
-<p class="sub">Seli Overseas S.p.A. · compila ad ogni rifornimento</p>
+<p class="sub">Seli Overseas S.p.A. · compila ad ogni rifornimento · v3</p>
 <div id="app"></div>
 <div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
 <div id="toast"></div>
@@ -186,7 +186,7 @@ function stop(e){return e&&(e.name=="AbortError"||e.code=="declined")}
 function sendS(s){
   LS=s;msg("Preparo foto e dati…");
   mkFiles(s).then(function(fl){
-    if(navigator.canShare&&navigator.canShare({files:fl}))return navigator.share({files:fl,title:"Scheda carburante "+s.veh.targa,text:txt(s)}).then(function(){mark(s)});
+    if(navigator.canShare&&navigator.canShare({files:fl}))return navigator.share({files:fl,title:"Scheda carburante "+s.veh.targa}).then(function(){mark(s)});
     throw new Error("condivisione di file non disponibile");
   }).catch(function(e){hideMsg();if(stop(e))return;fallback(txt(s),e)});
 }
@@ -194,6 +194,7 @@ async function mkFiles(s){
   var fl=[],nm=[];
   for(var i=0;i<s.rows.length;i++){var r=s.rows[i];if(r.foto){try{var b=await fget(r.foto);if(b){nm[i]=pad(i+1)+"_"+r.d+".jpg";fl.push(new File([b],nm[i],{type:"image/jpeg"}))}}catch(e){}}}
   fl.unshift(new File([csv(s,nm)],zname(s).replace(".zip",".csv"),{type:"text/csv"}));
+  fl.splice(1,0,new File([txt(s)],zname(s).replace(".zip",".txt"),{type:"text/plain"}));
   return fl;
 }
 function dlZip(s){mkZip(s).then(function(b){return saveBlob(b,zname(s))}).then(function(){msg("File ZIP salvato: lo trovi nei Download del telefono.",4000)}).catch(function(e){if(!stop(e))msg("Non riesco a creare il file.",3000)})}
